@@ -245,6 +245,7 @@ legacy_numpy_parse_signature(const char *signature, int nin, int nargs)
     mockup.nargs = nargs;
 
     rv = _parse_signature(&mockup, signature);
+    /* leaks (WiP)*/
 
     return rv;
 }
