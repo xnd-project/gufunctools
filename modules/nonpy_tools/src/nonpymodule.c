@@ -1,6 +1,7 @@
 
 
 #include "Python.h"
+#include <stdio.h>
 
 /* Use this macro to set up the module name. Do not use quotes.
    This name will be used in various places like the init function
@@ -45,11 +46,35 @@ test_func(PyObject *UNUSED_VAR(self),
     return PyUnicode_FromString("Hello World!");
 }
 
+extern int legacy_numpy_parse_signature(const char *signature, int nin, int nargs);
+
+static PyObject *
+legacy_parse_signature(PyObject *UNUSED_VAR(self),
+                       PyObject *args,
+                       PyObject *UNUSED_VAR(kwargs))
+{
+    int rv;
+    long int nin, nargs;
+    char *signature;
+    if (!PyArg_ParseTuple(args, "sll", &signature, &nin, &nargs))
+        return NULL;
+
+    printf("called with signature: '%s' nin: %li, nargs: %li\n",
+           signature, nin, nargs);
+
+    rv = legacy_numpy_parse_signature(signature, nin, nargs);
+
+    return PyBool_FromLong(!rv);
+}
+
 /* The method table */
 static struct PyMethodDef methods[] = {
     { "test_func",
       (PyCFunction) test_func,
       METH_NOARGS, NULL },
+    { "legacy_parse_signature",
+      legacy_parse_signature,
+      METH_VARARGS, NULL },
     { NULL, NULL, 0, NULL }   /* sentinel */
 };
 

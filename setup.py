@@ -2,7 +2,7 @@ from __future__ import division, print_function, absolute_import
 
 
 from distutils.core import setup, Extension
-import os, sys, copy
+import os, sys, copy, glob
 
 import versioneer
 
@@ -16,14 +16,15 @@ versioneer.tag_prefix = ''
 versioneer.parentdir_prefix = 'gufunctools-'
 
 
-
 gufunctools_module = Extension(
     'gufunctools._npy_tools',
     sources = []
 )
 
-NONUMPY_MODULE_SRC = [os.path.join('modules', 'nonpy_tools', 'src', srcfile) 
-                       for srcfile in ['nonpymodule.c']]
+# include all c files in its source directory
+NONUMPY_MODULE_SRC = glob.glob(
+    os.path.join('modules', 'nonpy_tools', 'src', '*.c')
+) 
 
 gufunctools_nonumpy_module = Extension(
     'gufunctools._nonpy_tools',
