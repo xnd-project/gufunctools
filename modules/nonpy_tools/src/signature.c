@@ -236,16 +236,45 @@ fail:
     return -1;
 }
 
+static void
+dump_int_array(const char *name, const int *array, size_t len)
+{
+    printf("%20s:", name);
+    for (size_t i=0; i < len;i++) {
+        printf(" %d", array[i]);
+    }
+    printf("\n");
+}
+
 int
 legacy_numpy_parse_signature(const char *signature, int nin, int nargs)
 {
     int rv;
-    UFuncMockup mockup;
+    UFuncMockup mockup = {0};
     mockup.nin = nin;
     mockup.nargs = nargs;
 
     rv = _parse_signature(&mockup, signature);
-    /* leaks (WiP)*/
+
+    /* print out the resulting values in mockup */
+    if (rv == 0) 
+    {
+        int total_dims = 0;
+        for (int i=0; i<mockup.nargs;i++)
+            total_dims += mockup.core_num_dims[i];
+
+        printf("Signature has %d inputs and %d outputs\n",
+               mockup.nin, mockup.nargs-mockup.nin);
+        dump_int_array("total_dims", &total_dims, 1);
+        dump_int_array("core_num_dim_ix", &mockup.core_num_dim_ix, 1);
+        dump_int_array("core_num_dims", mockup.core_num_dims, mockup.nargs);
+        dump_int_array("core_offsets", mockup.core_offsets, mockup.nargs);
+        dump_int_array("core_dim_ixs", mockup.core_dim_ixs, total_dims);
+    }
+
+    free(mockup.core_offsets);
+    free(mockup.core_dim_ixs);
+    free(mockup.core_num_dims);
 
     return rv;
 }
