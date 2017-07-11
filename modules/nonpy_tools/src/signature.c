@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+
+#include "signature.h"
 /* This code is based on the _parse_signature code in ufunc_object.c in
    NumPy source code. Edited to not rely on any NumPy dependency
 */
@@ -16,8 +18,6 @@
 
    - shapes of all inputs and outputs as a function of the dimension variables.
 */
-
-
 
 
 /* Return the position of next non-white-space char in the string */
@@ -75,15 +75,15 @@ _is_same_name(const char* s1, const char* s2)
 
 typedef struct _ufunc_mockup_struct {
     /* inputs */
-    int nargs;
-    int nin;
+    size_t nargs;
+    size_t nin;
 
     /* outputs */
-    int core_enabled; /* is it a gufunc? */
-    int core_num_dim_ix;
-    int *core_num_dims;
-    int *core_dim_ixs;
-    int *core_offsets;
+    size_t core_enabled; /* is it a gufunc? */
+    size_t core_num_dim_ix;
+    size_t *core_num_dims;
+    size_t *core_dim_ixs;
+    size_t *core_offsets;
 } UFuncMockup;
 
 /* this code is the actual code in NumPy adapted a bit. We will call it
@@ -98,8 +98,8 @@ _parse_signature(UFuncMockup *ufunc, const char *signature)
     size_t len;
     char const **var_names;
     int nd = 0;             /* number of dimension of the current argument */
-    int cur_arg = 0;        /* index into core_num_dims&core_offsets */
-    int cur_core_dim = 0;   /* index into core_dim_ixs */
+    size_t cur_arg = 0;        /* index into core_num_dims&core_offsets */
+    size_t cur_core_dim = 0;   /* index into core_dim_ixs */
     int i = 0;
     char *parse_error = NULL;
 
@@ -127,9 +127,9 @@ _parse_signature(UFuncMockup *ufunc, const char *signature)
 
     ufunc->core_enabled = 1;
     ufunc->core_num_dim_ix = 0;
-    ufunc->core_num_dims = malloc(sizeof(int) * ufunc->nargs);
-    ufunc->core_dim_ixs = malloc(sizeof(int) * len); /* shrink this later */
-    ufunc->core_offsets = malloc(sizeof(int) * ufunc->nargs);
+    ufunc->core_num_dims = malloc(sizeof(size_t) * ufunc->nargs);
+    ufunc->core_dim_ixs = malloc(sizeof(size_t) * len); /* shrink this later */
+    ufunc->core_offsets = malloc(sizeof(size_t) * ufunc->nargs);
     if (ufunc->core_num_dims == NULL || ufunc->core_dim_ixs == NULL
         || ufunc->core_offsets == NULL) {
         /* PyErr_NoMemory(); */
@@ -159,7 +159,7 @@ _parse_signature(UFuncMockup *ufunc, const char *signature)
         i = _next_non_white_space(signature, i + 1);
         while (signature[i] != ')') {
             /* loop over core dimensions */
-            int j = 0;
+            size_t j = 0;
             if (!_is_alpha_underscore(signature[i])) {
                 parse_error = "expect dimension name";
                 goto fail;
@@ -215,7 +215,7 @@ _parse_signature(UFuncMockup *ufunc, const char *signature)
         goto fail;
     }
     ufunc->core_dim_ixs = realloc(ufunc->core_dim_ixs,
-            sizeof(int)*cur_core_dim);
+            sizeof(size_t)*cur_core_dim);
     /* check for trivial core-signature, e.g. "(),()->()" */
     if (cur_core_dim == 0) {
         ufunc->core_enabled = 0;
@@ -246,37 +246,117 @@ dump_int_array(const char *name, const int *array, size_t len)
     printf("\n");
 }
 
-int
+static void
+dump_zu_array(const char *name, const size_t *array, size_t len)
+{
+    printf("%20s:", name);
+    for (size_t i=0; i < len;i++) {
+        printf(" %zu", array[i]);
+    }
+    printf("\n");
+}
+
+
+/* Data resulting from parsing a signature can be returned in this struct */
+
+parsed_signature *
+create_parsed_signature(size_t nin,
+                        size_t nargs,
+                        size_t dimension_variable_count,
+                        size_t *arg_dimension_count,
+                        size_t *arg_shape_offsets,
+                        size_t *arg_shape_idx)
+{
+    size_t total_signature_dimensions = 0;
+    for (size_t i=0; i<nargs; i++)
+        total_signature_dimensions += arg_dimension_count[i];
+
+    size_t total_size =
+        sizeof(parsed_signature) +
+        sizeof(size_t)*nargs + /* *ps_arg_dimension_count */
+        sizeof(size_t)*nargs + /* *ps_arg_shape_offsets */
+        sizeof(size_t)*total_signature_dimensions; /* *ps_arg_shape_idx */
+
+    parsed_signature *ps = malloc(total_size);
+    if (ps != NULL)
+    {
+        ps->input_count = nin;
+        ps->output_count = nargs - nin;
+        ps->arg_count = nargs;
+        ps->dimension_variable_count = dimension_variable_count;
+        ps->total_signature_dimensions = total_signature_dimensions;
+        ps->arg_dimension_count = ps->data;
+        ps->arg_shape_offsets = ps->arg_dimension_count + nargs;
+        ps->arg_shape_idx = ps->arg_shape_offsets + nargs;
+        for (size_t i = 0; i < nargs; i++) {
+            ps->arg_dimension_count[i] = arg_dimension_count[i];
+        }
+        for (size_t i = 0; i < nargs; i++) {
+            ps->arg_shape_offsets[i] = arg_shape_offsets[i];
+        }
+        for (size_t i = 0; i < total_signature_dimensions; i++) {
+            ps->arg_shape_idx[i] = arg_shape_idx[i];
+        }
+    }
+
+    return ps;
+}
+
+void
+dispose_parsed_signature(parsed_signature *the_signature)
+{
+    /* just dispose the base pointer as everything is packed together */
+    free(the_signature);
+}
+
+void print_parsed_signature(parsed_signature *the_signature)
+{
+    printf("Signature attributes:\n");
+
+    dump_zu_array("input_count", &the_signature->input_count, 1);
+    dump_zu_array("output_count", &the_signature->output_count, 1);
+    dump_zu_array("arg_count", &the_signature->arg_count, 1);
+    dump_zu_array("dimension_variable_count",
+                  &the_signature->dimension_variable_count, 1);
+    dump_zu_array("total_signature_dimensions",
+                  &the_signature->total_signature_dimensions, 1);
+
+    dump_zu_array("arg_dimension_count", the_signature->arg_dimension_count,
+                  the_signature->arg_count);
+    dump_zu_array("arg_shape_offsets", the_signature->arg_shape_offsets,
+                  the_signature->arg_count);
+    dump_zu_array("arg_shape_idx", the_signature->arg_shape_idx,
+                  the_signature->total_signature_dimensions);
+}
+
+parsed_signature *
 legacy_numpy_parse_signature(const char *signature, int nin, int nargs)
 {
-    int rv;
+    parsed_signature *result = NULL;
     UFuncMockup mockup = {0};
     mockup.nin = nin;
     mockup.nargs = nargs;
 
-    rv = _parse_signature(&mockup, signature);
-
     /* print out the resulting values in mockup */
-    if (rv == 0) 
+    if (_parse_signature(&mockup, signature) == 0) 
     {
-        int total_dims = 0;
-        for (int i=0; i<mockup.nargs;i++)
+        size_t total_dims = 0;
+        for (size_t i=0; i<mockup.nargs;i++)
             total_dims += mockup.core_num_dims[i];
 
-        printf("Signature has %d inputs and %d outputs\n",
-               mockup.nin, mockup.nargs-mockup.nin);
-        dump_int_array("total_dims", &total_dims, 1);
-        dump_int_array("core_num_dim_ix", &mockup.core_num_dim_ix, 1);
-        dump_int_array("core_num_dims", mockup.core_num_dims, mockup.nargs);
-        dump_int_array("core_offsets", mockup.core_offsets, mockup.nargs);
-        dump_int_array("core_dim_ixs", mockup.core_dim_ixs, total_dims);
+        result = create_parsed_signature(mockup.nin, 
+                                         mockup.nargs,
+                                         mockup.core_num_dim_ix,
+                                         mockup.core_num_dims,
+                                         mockup.core_offsets,
+                                         mockup.core_dim_ixs);
     }
 
     free(mockup.core_offsets);
     free(mockup.core_dim_ixs);
     free(mockup.core_num_dims);
 
-    return rv;
+    return result;
 }
 
 
