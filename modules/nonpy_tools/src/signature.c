@@ -360,3 +360,53 @@ legacy_numpy_parse_signature(const char *signature, int nin, int nargs)
 }
 
 
+void
+scan_signature(const char *signature, size_t *nin, size_t *nargs)
+{
+    /* use ')' as identifier of an argument, use '>' as delimiter of
+       input/output. This only needs to work for well formed signatures */
+    size_t *curr=nin;
+    char ch = '\0';
+    *nin = *nargs = 0;
+    do {
+        ch = *signature++;
+        switch (ch) {
+        case ')':
+            *curr += 1;
+            break;
+        case '>':
+            *nargs = *curr;
+            curr = nargs;
+        }
+    } while(ch != '\0');
+}
+
+parsed_signature *
+numpy_parse_signature(const char *signature)
+{
+    parsed_signature *result = NULL;
+    UFuncMockup mockup = {0};
+
+    scan_signature(signature, &mockup.nin, &mockup.nargs);
+
+    /* print out the resulting values in mockup */
+    if (_parse_signature(&mockup, signature) == 0) 
+    {
+        size_t total_dims = 0;
+        for (size_t i=0; i<mockup.nargs;i++)
+            total_dims += mockup.core_num_dims[i];
+
+        result = create_parsed_signature(mockup.nin, 
+                                         mockup.nargs,
+                                         mockup.core_num_dim_ix,
+                                         mockup.core_num_dims,
+                                         mockup.core_offsets,
+                                         mockup.core_dim_ixs);
+    }
+
+    free(mockup.core_offsets);
+    free(mockup.core_dim_ixs);
+    free(mockup.core_num_dims);
+
+    return result;
+}

@@ -16,8 +16,15 @@ typedef struct _parsed_signature_header_struct {
     size_t data[]; 
 } parsed_signature;
 
+
+/* legacy function that requires nin and nargs just as NumPy internal code */
 parsed_signature *
 legacy_numpy_parse_signature(const char *signature, int nin, int nargs);
+
+/* like legacy_numpy_parse_signature but it figures out nin and nargs from
+   the signature */
+parsed_signature *
+numpy_parse_signature(const char *signature);
 
 void
 print_parsed_signature(parsed_signature *the_signature);

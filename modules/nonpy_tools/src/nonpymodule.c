@@ -104,10 +104,33 @@ legacy_parse_signature(PyObject *UNUSED_VAR(self),
     }
 }
 
+static PyObject *
+parse_signature(PyObject *UNUSED_VAR(self),
+                       PyObject *args,
+                       PyObject *UNUSED_VAR(kwargs))
+{
+    parsed_signature *ps;
+    char *signature;
+    if (!PyArg_ParseTuple(args, "s", &signature))
+        return NULL;
+
+    ps = numpy_parse_signature(signature);
+
+    if (ps) {
+        return box_signature(ps);
+    } else {
+        return PyErr_Format(PyExc_RuntimeError, "Parse error on signature '%s'", signature);
+    }
+}
+
+
 /* The method table */
 static struct PyMethodDef methods[] = {
     { "legacy_parse_signature",
       legacy_parse_signature,
+      METH_VARARGS, NULL },
+    { "parse_signature",
+      parse_signature,
       METH_VARARGS, NULL },
     { NULL, NULL, 0, NULL }   /* sentinel */
 };
