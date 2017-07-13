@@ -56,6 +56,40 @@ eig gufunc.
    import numpy.linalg._umath_linalg as _ula
 
 
+Execution of a gufunc in NumPy
+==============================
+
+The code that deals with execution of a gufunc is in the file
+'numpy/core/src/umath/ufunc_object.c'. The function to look at is
+'PyUFunc_GeneralizedFunction', that contains most (if not all) of all
+the machinery required to successfully run a gufunc. Luckily enough it
+is well commented.
+
+The function does, among other thing:
+
+- Resolving:
+
+  - It matches the gufunc signature to the arguments shapes.
+
+  - Resolves the sizes of non explicit outputs.
+
+  - Validates the shapes of the arguments, so that dimensions in the
+    original signature that share a name match properly.
+
+  - Determines the iteration shape (if possible, will raise an
+    exception if that is not possible)
+
+- Kernel selection
+
+- Execution:
+
+  - Uses a NpyIter based iteration to execute the loop. NpyIter
+    initialization handles the creation of any output result array
+    that was not explicitly provided.
+
+It also includes some minimal support for exception handling (based on
+NumPy's approach of using signaling flags).
+
 Resolving
 =========
 
