@@ -60,13 +60,19 @@ Critical Pieces
 ===============
 
 The gufunc has several key pieces:
+
 - Resolving/dispatching: taking the arguments and based on the gufunc
   description, the arguments must be checked and resolved. This includes:
+
   - Resolving signature variables (usually dimension matching arguments).
+
   - Resolving involved types (based on the arguments)
+
   - Kernel selection (based on types)
+
   - Infer result dimensions/types (based on signature variables,
     involved types and kernel specific information)
+
   - Identify outer shape. At this point the number of calls to the
     kernel should already be evident. Note that this is quite related
     to the result dimensions.
