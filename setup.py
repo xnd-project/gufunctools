@@ -1,7 +1,8 @@
 from __future__ import division, print_function, absolute_import
 
 
-from distutils.core import setup, Extension
+from numpy.distutils.core import setup, Extension
+from numpy.distutils import misc_util as np_misc_util
 import os, sys, copy, glob
 
 import versioneer
@@ -24,13 +25,22 @@ gufunctools_module = Extension(
 # include all c files in its source directory
 NONUMPY_MODULE_SRC = glob.glob(
     os.path.join('modules', 'nonpy_tools', 'src', '*.c')
-) 
+)
 
 gufunctools_nonumpy_module = Extension(
     'gufunctools._nonpy_tools',
     sources = NONUMPY_MODULE_SRC,
 )
 
+EXAMPLES_MODULE_SRC = glob.glob(
+    os.path.join('modules', 'examples', 'src', '*.c')
+)
+
+gufunctools_examples_module = Extension(
+    'gufunctools.examples',
+    sources = EXAMPLES_MODULE_SRC,
+    **np_misc_util.get_info('npymath')
+)
 
 packages = [
     'gufunctools',
@@ -42,6 +52,7 @@ packages = [
 ext_modules = [
 #    gufunctools_module,
     gufunctools_nonumpy_module,
+    gufunctools_examples_module,
 ]
 
 setup(name='gufunctools',
