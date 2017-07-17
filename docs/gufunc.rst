@@ -55,6 +55,23 @@ There are several important concepts related to a gufunc:
   The total number of elements will be defined by the outer shapes of
   the inputs.
 
+- Datashape (abstract): A composition of dimensions and base type. This
+  describes the "abstract" portion of the datashape without any layout
+  details. It would look something like "9 * 7 * float32". Abstract
+  datashape should be enough to reason about operations, but will not
+  contain enough information to perform them.
+
+- Datashape (concrete): Abstract datashape plus metadata describing a
+  memory layout. A concrete datashape plus a memory pointer has enough
+  information to perform operations on the data. It specifies the
+  actual layout in memory. Its associated meta-data should be enough
+  to transform logical indices into memory addresses relative to the
+  "data pointer".
+
+- Data pointer: A base value (or set of values) that allow accessing
+  the data of a given array. Combined with a concrete datashape, it
+  forms an array view that can be inspected and operated on.
+
 
 Critical Pieces
 ===============
