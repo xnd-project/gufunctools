@@ -1,7 +1,10 @@
 
 
 #include <Python.h>
+#include <structmember.h>
+
 #include <stdio.h>
+#include <stdint.h>
 
 #include "signature.h"
 
@@ -11,8 +14,8 @@
    module
 */
 
+#define THIS_MODULE_PATH "gufunctools"
 #define THIS_MODULE_NAME _nonpy_tools
-
 
 /* Some misc macros */
 #define _CONCAT(a,b) a ## b
@@ -82,6 +85,127 @@ box_signature(parsed_signature *ps)
     return rv;
 }
 
+/* -----------------------------------------------------------------------------
+ * Boxed signature object
+ */
+
+typedef struct {
+    PyObject_HEAD
+    parsed_signature *the_signature;
+} guft_SignatureObject;
+
+static void
+Signature_dealloc(guft_SignatureObject *self)
+{
+    /* the wrapper is owner of the underlying object */
+    release_parsed_signature(self->the_signature);
+    Py_TYPE(self)->tp_free((PyObject*)self);
+}
+
+static PyObject *
+Signature_new(PyTypeObject *type,
+              PyObject *args,
+              PyObject *kwds)
+{
+    guft_SignatureObject *self;
+
+    self = (guft_SignatureObject *) type->tp_alloc(type, 0);
+    if (self != NULL) {
+        self->the_signature = NULL;
+    }
+
+    return (PyObject *)self;
+}
+
+static int
+Signature_init(guft_SignatureObject *self,
+               PyObject *args,
+               PyObject *kwds)
+{
+    const char *signature_str = NULL;
+
+    static char *kwlist[] = { "id",  NULL };
+
+    if (! PyArg_ParseTupleAndKeywords(args, kwds, "s|", kwlist,
+                                      &signature_str))
+        return -1;
+
+    if (signature_str) {
+        self->the_signature = numpy_parse_signature(signature_str);
+    }
+
+    return 0;
+}
+
+static PyObject *
+Signature_boxed(guft_SignatureObject *self)
+{
+    return box_signature(self->the_signature);
+}
+
+#if SIZEOF_UINTPTR_T == SIZEOF_LONG
+#   define T_UINTPTR T_ULONG
+#elif SIZEOF_UINTPTR_T == SIZEOF_LONG_LONG
+#   define T_UINTPTR T_ULONGLONG
+#else
+#   error "Don't know what type to use to expose naked pointers in Python."
+#endif
+static PyMemberDef guft_SignatureObject_members[] = {
+    {"id", T_UINTPTR, offsetof(guft_SignatureObject, the_signature), READONLY, 
+     "c object ptr"},
+    {NULL} /* Sentinel */
+};
+
+static PyMethodDef guft_SignatureObject_methods[] = {
+    {"boxed", (PyCFunction)Signature_boxed, METH_NOARGS,
+     "Returns signature data boxed in python tuples"
+    },
+    {NULL} /* Sentinel */
+};
+
+
+static PyTypeObject guft_SignatureType = {
+    PyVarObject_HEAD_INIT(NULL,0)
+    THIS_MODULE_PATH"."STR(THIS_MODULE_NAME)".Signature", /* tp_name */
+    sizeof(guft_SignatureObject),                         /* tp_basicsize */
+    0,                                                    /* tp_itemsize */
+    (destructor)Signature_dealloc,                        /* tp_dealloc */
+    0,                                                    /* tp_print */
+    0,                                                    /* tp_getattr */
+    0,                                                    /* tp_setattr */
+    0,                                                    /* tp_reserved */
+    0,                                                    /* tp_repr */
+    0,                                                    /* tp_as_number */
+    0,                                                    /* tp_as_sequence */
+    0,                                                    /* tp_as_mapping */
+    0,                                                    /* tp_hash */
+    0,                                                    /* tp_call */
+    0,                                                    /* tp_str */
+    0,                                                    /* tp_getattro */
+    0,                                                    /* tp_setattro */
+    0,                                                    /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,             /* tp_flags */
+    "Dimension signature objects",                        /* tp_doc */
+    0,                                                    /* tp_traverse */
+    0,                                                    /* tp_clear */
+    0,                                                    /* tp_richcompare */
+    0,                                                    /* tp_weaklistoffset */
+    0,                                                    /* tp_iter */
+    0,                                                    /* tp_iternext */
+    guft_SignatureObject_methods,                         /* tp_methods */
+    guft_SignatureObject_members,                         /* tp_members */
+    0,                                                    /* tp_getset */
+    0,                                                    /* tp_base */
+    0,                                                    /* tp_dict */
+    0,                                                    /* tp_descr_get */
+    0,                                                    /* tp_descr_set */
+    0,                                                    /* tp_dictoffset */
+    (initproc)Signature_init,                             /* tp_init */
+    0,                                                    /* tp_alloc */
+    Signature_new,                                        /* tp_new */
+};
+
+
 /* return the data from the signature boxed in some Python structure.
 */
 static PyObject *
@@ -123,14 +247,13 @@ parse_signature(PyObject *UNUSED_VAR(self),
     }
 }
 
-
 /* The method table */
 static struct PyMethodDef methods[] = {
     { "legacy_parse_signature",
-      legacy_parse_signature,
+      (PyCFunction)legacy_parse_signature,
       METH_VARARGS, NULL },
     { "parse_signature",
-      parse_signature,
+      (PyCFunction)parse_signature,
       METH_VARARGS, NULL },
     { NULL, NULL, 0, NULL }   /* sentinel */
 };
@@ -153,11 +276,19 @@ MOD_INIT(_nonpy_tools)
 {
     PyObject *m = NULL;
 
+    guft_SignatureType.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&guft_SignatureType) < 0)
+        MOD_RETURN(m);
+
 #if defined(PYTHON3)
     m = PyModule_Create(&moduledef);
 #else
     m = Py_InitModule(STR(THIS_MODULE_NAME), methods);
 #endif /* PYTHON3 */
+
+    Py_INCREF(&guft_SignatureType);
+
+    PyModule_AddObject(m, "Signature", (PyObject*) &guft_SignatureType);
 
     MOD_RETURN(m);
 }
