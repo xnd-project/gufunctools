@@ -30,7 +30,7 @@ void
 print_parsed_signature(parsed_signature *the_signature);
 
 void
-dispose_parsed_signature(parsed_signature *the_signature);
+release_parsed_signature(parsed_signature *the_signature);
 
 
 #endif /* GUFT_SIGNATURE_H */

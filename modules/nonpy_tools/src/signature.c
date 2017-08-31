@@ -303,7 +303,7 @@ create_parsed_signature(size_t nin,
 }
 
 void
-dispose_parsed_signature(parsed_signature *the_signature)
+release_parsed_signature(parsed_signature *the_signature)
 {
     /* just dispose the base pointer as everything is packed together */
     free(the_signature);
